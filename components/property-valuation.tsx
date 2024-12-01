@@ -10,6 +10,20 @@ import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/comp
 import { Info } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer } from 'recharts';
 
+interface ProjectionData {
+    year: string;
+    landValue: number;
+    buildingValue: number;
+    totalValue: number;
+    rentalValue: number;
+}
+
+interface LabelWithTooltipProps {
+    htmlFor: string;
+    label: string;
+    tooltip: string;
+}
+
 export function PropertyValuation() {
     const [monthlyRent, setMonthlyRent] = useState(20000);
     const [landPrice, setLandPrice] = useState(5000);
@@ -21,7 +35,7 @@ export function PropertyValuation() {
     const [futureFsi, setFutureFsi] = useState(2);
     const [landValue, setLandValue] = useState(0);
     const [buildingValue, setBuildingValue] = useState(0);
-    const [projectedValues, setProjectedValues] = useState([]);
+    const [projectedValues, setProjectedValues] = useState<ProjectionData[]>([]);
 
     const calculateValues = () => {
         const LIFESPAN = 60;
@@ -78,7 +92,7 @@ export function PropertyValuation() {
         calculateValues();
     }, [monthlyRent, landPrice, builtUpArea, fsi, currentYield, buildingAge, landInflation, futureFsi]);
 
-    const LabelWithTooltip = ({ htmlFor, label, tooltip }) => (
+    const LabelWithTooltip = ({ htmlFor, label, tooltip }: LabelWithTooltipProps) => (
         <div className="flex items-center gap-2">
             <Label htmlFor={htmlFor}>{label}</Label>
             <TooltipProvider>
