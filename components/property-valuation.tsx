@@ -9,7 +9,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 import { Info } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer } from 'recharts';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+  } from "@/components/ui/select";
 import { indianCities } from '@/data/indian-cities';
+  
 
 interface ProjectionData {
     year: string;
@@ -37,6 +45,7 @@ export function PropertyValuation() {
     const [landValue, setLandValue] = useState(0);
     const [buildingValue, setBuildingValue] = useState(0);
     const [projectedValues, setProjectedValues] = useState<ProjectionData[]>([]);
+    const [selectedCity, setSelectedCity] = useState<string>("");
 
     const calculateValues = () => {
         const LIFESPAN = 60;
@@ -88,6 +97,14 @@ export function PropertyValuation() {
 
         setProjectedValues(projectionData);
     };
+    useEffect(() => {
+        if (selectedCity) {
+          const cityData = indianCities.find(city => city.city === selectedCity);
+          if (cityData) {
+            setLandPrice(cityData.averageLandPrice);
+          }
+        }
+    }, [selectedCity]);
 
     useEffect(() => {
         calculateValues();
@@ -139,6 +156,35 @@ export function PropertyValuation() {
                                 />
                             </div>
 
+                            <div>
+                            <LabelWithTooltip
+                                htmlFor="city"
+                                label="City"
+                                tooltip="Select your city to get average land prices"
+                            />
+                            <Select
+                                value={selectedCity}
+                                onValueChange={setSelectedCity}
+                            >
+                                <SelectTrigger className="w-full">
+                                <SelectValue placeholder="Select a city" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                {indianCities.map((city) => (
+                                    <SelectItem key={city.city} value={city.city}>
+                                    {city.city}, {city.state}
+                                    </SelectItem>
+                                ))}
+                                </SelectContent>
+                            </Select>
+                            {selectedCity && (
+                                <p className="text-xs text-gray-500 mt-1">
+                                Price Range: ₹{indianCities.find(c => c.city === selectedCity)?.priceRange.low.toLocaleString('en-IN')} - 
+                                ₹{indianCities.find(c => c.city === selectedCity)?.priceRange.high.toLocaleString('en-IN')} per sq ft
+                                </p>
+                                )}
+                            </div>
+            
                             <div>
                                 <LabelWithTooltip
                                     htmlFor="land-price"
