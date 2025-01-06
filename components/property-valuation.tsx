@@ -9,14 +9,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 import { Info } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer } from 'recharts';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-  } from "@/components/ui/select";
-import { indianCities } from '@/data/indian-cities';
   
 
 interface ProjectionData {
@@ -35,32 +27,58 @@ interface LabelWithTooltipProps {
 
 export function PropertyValuation() {
     const [monthlyRent, setMonthlyRent] = useState(20000);
-    const [landPrice, setLandPrice] = useState(5000);
+    const [landPrice, setLandPrice] = useState(10000);
     const [builtUpArea, setBuiltUpArea] = useState(1000);
     const [fsi, setFsi] = useState(1.5);
     const [currentYield, setCurrentYield] = useState(3);
     const [buildingAge, setBuildingAge] = useState(5);
     const [landInflation, setLandInflation] = useState(8);
+    const [constructionInflation, setConstructionInflation] = useState(7);
+    const [newConstructionCost, setNewConstructionCost] = useState(4000);
+
     const [futureFsi, setFutureFsi] = useState(2);
     const [landValue, setLandValue] = useState(0);
     const [buildingValue, setBuildingValue] = useState(0);
+    const [listedPropertyValue, setListedPropertyValue] = useState(0);
+    const [premiumDiscount, setPremiumDiscount] = useState(0);
+    const [expectedConstructionCost, setExpectedConstructionCost] = useState(0);
     const [projectedValues, setProjectedValues] = useState<ProjectionData[]>([]);
-    const [selectedCity, setSelectedCity] = useState<string>("");
 
     const calculateValues = () => {
         const LIFESPAN = 60;
-        const YEARS_TO_PROJECT = 10;
+        const YEARS_TO_PROJECT = 40;
 
         // Land value calculation
         const landArea = Math.ceil(builtUpArea / fsi);
         const totalLandValue = Math.ceil(landArea * landPrice);
         setLandValue(totalLandValue);
 
-        // Building value calculation
+        const getConstructionCostPerSqFt = (age: number) => {
+            if (age <= 15) {
+                // For buildings aged 0 to 15 years
+                const initialCost = newConstructionCost;
+                const finalCost = newConstructionCost / 2;
+                return Math.ceil(initialCost - ((initialCost - finalCost) / 15) * age);
+            } else if (age <= 40) {
+                // For buildings aged 16 to 40 years
+                const initialCost = newConstructionCost / 2;
+                const finalCost = newConstructionCost / 4;
+                return Math.ceil(initialCost - ((initialCost - finalCost) / 25) * (age - 15));
+            } else {
+                // For buildings aged 41 years and older
+                const initialCost = newConstructionCost / 4;
+                const finalCost = 0;
+                return Math.ceil(initialCost - ((initialCost - finalCost) / (LIFESPAN - 40)) * (age - 40));
+            }
+        };
+        
         const annualRent = monthlyRent * 12;
-        const initialBuildingValue = Math.ceil(annualRent * 100 / currentYield);
-        const currentBuildingValue = Math.ceil(initialBuildingValue * (1 - buildingAge/LIFESPAN));
-        setBuildingValue(currentBuildingValue);
+        const listedPropertyValue = Math.ceil(annualRent * 100 / currentYield);
+        setListedPropertyValue(listedPropertyValue);
+        setExpectedConstructionCost(getConstructionCostPerSqFt(buildingAge));
+        setBuildingValue(expectedConstructionCost * builtUpArea);
+        const premiumDiscount = landValue + buildingValue - listedPropertyValue;
+        setPremiumDiscount(premiumDiscount);
 
         // Calculate projections
         const projectionData = [];
@@ -69,8 +87,8 @@ export function PropertyValuation() {
         projectionData.push({
             year: 'Current',
             landValue: totalLandValue,
-            buildingValue: currentBuildingValue,
-            totalValue: totalLandValue + currentBuildingValue,
+            buildingValue: buildingValue,
+            totalValue: totalLandValue + buildingValue,
             rentalValue: annualRent
         });
 
@@ -84,31 +102,24 @@ export function PropertyValuation() {
 
             // Building value simple age-based depreciation
             const effectiveAge = buildingAge + year;
-            const yearBuildingValue = Math.max(0, Math.ceil(initialBuildingValue * (1 - effectiveAge/LIFESPAN)));
-
+            const yearBuildingValue = Math.ceil(getConstructionCostPerSqFt(effectiveAge) * builtUpArea * Math.pow(1 + constructionInflation/100, year));
+            const yearRentalValue = Math.ceil(annualRent * getConstructionCostPerSqFt(effectiveAge) / getConstructionCostPerSqFt(buildingAge) * Math.pow(1 + landInflation/100, year));
+            
             projectionData.push({
                 year: `Year ${year}`,
                 landValue: yearLandValue,
                 buildingValue: yearBuildingValue,
                 totalValue: yearLandValue + yearBuildingValue,
-                rentalValue: annualRent
+                rentalValue: yearRentalValue 
             });
         }
 
         setProjectedValues(projectionData);
     };
-    useEffect(() => {
-        if (selectedCity) {
-          const cityData = indianCities.find(city => city.city === selectedCity);
-          if (cityData) {
-            setLandPrice(cityData.averageLandPrice);
-          }
-        }
-    }, [selectedCity]);
 
     useEffect(() => {
         calculateValues();
-    }, [monthlyRent, landPrice, builtUpArea, fsi, currentYield, buildingAge, landInflation, futureFsi]);
+    }, [monthlyRent, landPrice, builtUpArea, buildingAge, newConstructionCost, expectedConstructionCost, fsi, currentYield, landInflation, constructionInflation, futureFsi]);
 
     const LabelWithTooltip = ({ htmlFor, label, tooltip }: LabelWithTooltipProps) => (
         <div className="flex items-center gap-2">
@@ -157,35 +168,6 @@ export function PropertyValuation() {
                             </div>
 
                             <div>
-                            <LabelWithTooltip
-                                htmlFor="city"
-                                label="City"
-                                tooltip="Select your city to get average land prices"
-                            />
-                            <Select
-                                value={selectedCity}
-                                onValueChange={setSelectedCity}
-                            >
-                                <SelectTrigger className="w-full">
-                                <SelectValue placeholder="Select a city" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                {indianCities.map((city) => (
-                                    <SelectItem key={city.city} value={city.city}>
-                                    {city.city}, {city.state}
-                                    </SelectItem>
-                                ))}
-                                </SelectContent>
-                            </Select>
-                            {selectedCity && (
-                                <p className="text-xs text-gray-500 mt-1">
-                                Price Range: ₹{indianCities.find(c => c.city === selectedCity)?.priceRange.low.toLocaleString('en-IN')} - 
-                                ₹{indianCities.find(c => c.city === selectedCity)?.priceRange.high.toLocaleString('en-IN')} per sq ft
-                                </p>
-                                )}
-                            </div>
-            
-                            <div>
                                 <LabelWithTooltip
                                     htmlFor="land-price"
                                     label="Land Price (₹/sq ft)"
@@ -231,6 +213,38 @@ export function PropertyValuation() {
                                     className="mt-1"
                                     min="0"
                                     max="60"
+                                />
+                            </div>
+
+                            <div>
+                                <LabelWithTooltip
+                                    htmlFor="new-construction-cost"
+                                    label="New Construction Cost (₹/sq ft)"
+                                    tooltip="Current construction cost per square foot for a new building"
+                                />
+                                <Input 
+                                    id="new-construction-cost"
+                                    type="number" 
+                                    value={newConstructionCost} 
+                                    onChange={e => setNewConstructionCost(Number(e.target.value))}
+                                    className="mt-1"
+                                    min="0"
+                                />
+                            </div>
+
+                            <div>
+                                <LabelWithTooltip
+                                    htmlFor="expected-construction-cost"
+                                    label="Expected Construction Cost at Building Age (₹/sq ft)"
+                                    tooltip="Expected construction cost per square foot at the current building age"
+                                />
+                                <Input 
+                                    id="expected-construction-cost"
+                                    type="number" 
+                                    value={expectedConstructionCost} 
+                                    onChange={e => setExpectedConstructionCost(Number(e.target.value))}
+                                    className="mt-1"
+                                    min="0"
                                 />
                             </div>
 
@@ -283,9 +297,14 @@ export function PropertyValuation() {
                                 </div>
                             </div>
                             <div className="bg-white rounded-lg border p-4 shadow-sm">
-                                <h3 className="text-sm text-gray-500">Total Property Value</h3>
-                                <p className="text-2xl font-bold">₹{(landValue + buildingValue).toLocaleString('en-IN')}</p>
-                                <p className="text-xs text-gray-400">₹{Math.ceil((landValue + buildingValue)/builtUpArea).toLocaleString('en-IN')}/sq ft</p>
+                                <h3 className="text-sm text-gray-500">Listed Property Value as per Rental Yield</h3>
+                                <p className="text-2xl font-bold">₹{listedPropertyValue.toLocaleString('en-IN')}</p>
+                                <p className="text-xs text-gray-400">₹{Math.ceil(listedPropertyValue/builtUpArea).toLocaleString('en-IN')}/sq ft</p>
+                            </div>
+                            <div className="bg-white rounded-lg border p-4 shadow-sm">
+                                <h3 className="text-sm text-gray-500">Premium Paid</h3>
+                                <p className="text-2xl font-bold">₹{premiumDiscount.toLocaleString('en-IN')}</p>
+                                <p className="text-xs text-gray-400">{Math.ceil(premiumDiscount/listedPropertyValue*100).toLocaleString('en-IN')}%</p>
                             </div>
                         </div>
                     </TabsContent>
@@ -307,6 +326,23 @@ export function PropertyValuation() {
                                     className="mt-2"
                                 />
                                 <div className="text-sm text-gray-500 mt-1">{landInflation}%</div>
+                            </div>
+
+                            <div>
+                                <LabelWithTooltip
+                                    htmlFor="construction-inflation"
+                                    label="Expected Construction Price Inflation (%)"
+                                    tooltip="Annual increase in construction prices"
+                                />
+                                <Slider
+                                    value={[constructionInflation]}
+                                    onValueChange={value => setConstructionInflation(value[0])}
+                                    min={0}
+                                    max={15}
+                                    step={0.5}
+                                    className="mt-2"
+                                />
+                                <div className="text-sm text-gray-500 mt-1">{constructionInflation}%</div>
                             </div>
 
                             <div>
